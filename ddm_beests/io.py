@@ -90,9 +90,13 @@ def rashi_add_derived_columns(df):
     """
     df = df.copy()
 
-    # Clean RT and Delay; they may already be in seconds, but we keep as-is.
+    # Clean RT and Delay.
+    # ReactionTime is already in seconds in your files.
     df["ReactionTime"] = pd.to_numeric(df["ReactionTime"], errors="coerce")
     df["Delay"] = pd.to_numeric(df["Delay"], errors="coerce")
+    # Delay appears to be in milliseconds (e.g. ~300), so convert to seconds.
+    if df["Delay"].dropna().mean() > 10:
+        df["Delay"] = df["Delay"] / 1000.0
 
     # Trial type categories
     trial_type = df["TrialType"].astype(str)
@@ -109,10 +113,14 @@ def rashi_add_derived_columns(df):
     # We keep 'Correct' as-is but also define interpretable flags:
     df["is_correct"] = df["Correct"] == 1
 
-    # Successful inhibition on stop trials: no response, correct == 1
-    df["is_stop_success"] = df["is_stop"] & df["is_correct"] & resp.str.contains("NoResponse", case=False, na=False)
-    # Failed inhibition: stop trial, incorrect (Correct == 0)
-    df["is_stop_fail"] = df["is_stop"] & (~df["is_correct"])
+    # Successful inhibition on stop trials: 'Successful Stop' and Correct == 1
+    df["is_stop_success"] = df["is_stop"] & df["is_correct"] & resp.str.contains(
+        "Successful Stop", case=False, na=False
+    )
+    # Failed inhibition: stop trial with 'Failed Stop' or incorrect.
+    df["is_stop_fail"] = df["is_stop"] & (
+        (~df["is_correct"]) | resp.str.contains("Failed Stop", case=False, na=False)
+    )
 
     # Go omissions: go trial with missing RT or explicit NoResponse
     df["is_go_omission"] = df["is_go"] & (

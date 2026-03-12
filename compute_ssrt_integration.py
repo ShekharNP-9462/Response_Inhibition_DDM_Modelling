@@ -80,6 +80,13 @@ def compute_subject_ssrt(subject_dir):
         and go_omissions_ok
     )
 
+    # Additional counts for bookkeeping
+    n_all_trials = int(len(raw))
+    n_anticipations = int(raw["is_anticipation"].sum())
+    # Go and stop failures (errors) separately
+    n_fail_stop = int(stop_fail.sum())
+    n_fail_go = int((raw["is_go"] & (~raw["is_correct"])).sum())
+
     return {
         "subject_id": subject_id,
         "group": group,
@@ -103,6 +110,10 @@ def compute_subject_ssrt(subject_dir):
         "go_omission_rate": go_omission_rate,
         "go_omissions_ok": go_omissions_ok,
         "passed_cleaning": passed_cleaning,
+        "n_all_trials": n_all_trials,
+        "n_anticipations": n_anticipations,
+        "n_fail_stop": n_fail_stop,
+        "n_fail_go": n_fail_go,
     }, go_rts_ms, all_go_rts
 
 
