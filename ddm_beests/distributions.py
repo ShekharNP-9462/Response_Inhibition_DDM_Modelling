@@ -44,3 +44,31 @@ def safe_logsumexp(log_w, axis=None):
     if axis is not None:
         res = np.squeeze(res, axis=axis)
     return res
+
+
+def wald_logpdf(x, mu, lam):
+    """
+    Log PDF of the inverse Gaussian (Wald) distribution.
+
+    Parameterization: mean mu, shape (precision) lam.
+    PDF: sqrt(lam/(2*pi*x^3)) * exp(-lam*(x-mu)^2 / (2*mu^2*x)), x > 0.
+
+    Used for DDM first-passage time: decision time T ~ Wald(mu=a/v, lam=a^2)
+    when diffusion coefficient s=1 (drift v, boundary a).
+    """
+    x = np.asarray(x, dtype=float)
+    if np.any(x <= 0):
+        out = np.full_like(x, -np.inf)
+        out[x > 0] = _wald_logpdf_scalar(x[x > 0], mu, lam)
+        return out
+    return _wald_logpdf_scalar(x, mu, lam)
+
+
+def _wald_logpdf_scalar(x, mu, lam):
+    """Log PDF of Wald for x > 0."""
+    return (
+        0.5 * np.log(lam)
+        - 0.5 * np.log(2.0 * np.pi)
+        - 1.5 * np.log(x)
+        - lam * (x - mu) ** 2 / (2.0 * mu ** 2 * np.clip(x, 1e-300, None))
+    )

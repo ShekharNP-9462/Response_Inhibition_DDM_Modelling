@@ -182,3 +182,27 @@ def rashi_to_generic_stop_signal(df):
     # (More specific trimming can still be applied by split_go_stop if desired)
     return generic
 
+
+def prepare_rashi_single_subject_for_model(subject_dir):
+    """
+    Convenience helper for modelling: load a Rashi subject directory and
+    return go and stop DataFrames in the generic stop-signal schema.
+
+    - Go trials: MS_GO trials with valid RTs (the context where stops can occur).
+    - Stop trials: all stop trials with SSD in seconds and response coded as
+      'inhibit' or 'respond' as expected by the modelling code.
+    """
+    raw = load_rashi_subject_dir(subject_dir)
+    raw = rashi_add_derived_columns(raw)
+    generic = rashi_to_generic_stop_signal(raw)
+
+    # MS_GO go trials with valid RTs
+    ms_go_mask = raw["is_ms_go"] & raw["is_valid_go_rt"]
+    go_df = generic.loc[ms_go_mask, ["rt", "response", "ssd"]].copy()
+
+    # All stop trials
+    stop_mask = raw["is_stop"]
+    stop_df = generic.loc[stop_mask, ["rt", "response", "ssd"]].copy()
+
+    return go_df, stop_df
+
