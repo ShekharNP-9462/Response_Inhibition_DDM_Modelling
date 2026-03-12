@@ -68,10 +68,10 @@ def compute_subject_ssrt(subject_dir):
     go_accuracy = n_go_correct / n_go_total if n_go_total > 0 else np.nan
     go_accuracy_ok = np.isfinite(go_accuracy) and (go_accuracy >= 0.60)
 
-    # 4. Go omissions: <= 10% of go trials
+    # 4. Go omissions: <= 20% of go trials (user-specified)
     n_go_omissions = int(raw["is_go_omission"].sum())
     go_omission_rate = n_go_omissions / n_go_total if n_go_total > 0 else np.nan
-    go_omissions_ok = np.isfinite(go_omission_rate) and (go_omission_rate <= 0.10)
+    go_omissions_ok = np.isfinite(go_omission_rate) and (go_omission_rate <= 0.20)
 
     passed_cleaning = (
         failed_stop_vs_go_ok
