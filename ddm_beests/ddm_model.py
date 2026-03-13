@@ -8,9 +8,49 @@ Stop process: ex-Gaussian SSRT; race with go DDM for stop trials.
 
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
+from pytensor.graph import Apply, Op
 from scipy.stats import invgauss
 
 from .distributions import exgauss_logpdf, wald_logpdf
+
+
+class DDMLogLikeOp(Op):
+    """PyTensor Op that wraps the black-box DDM log-likelihood (returns scalar)."""
+
+    def __init__(self, go_df, stop_df, n_mc=500, eps=1e-6):
+        self.go_df = go_df
+        self.stop_df = stop_df
+        self.n_mc = n_mc
+        self.eps = eps
+
+    def make_node(self, v, a, ter, mu_ssrt, sigma_ssrt, tau_ssrt):
+        v = pt.as_tensor_variable(v)
+        a = pt.as_tensor_variable(a)
+        ter = pt.as_tensor_variable(ter)
+        mu_ssrt = pt.as_tensor_variable(mu_ssrt)
+        sigma_ssrt = pt.as_tensor_variable(sigma_ssrt)
+        tau_ssrt = pt.as_tensor_variable(tau_ssrt)
+        inputs = [v, a, ter, mu_ssrt, sigma_ssrt, tau_ssrt]
+        outputs = [pt.dscalar()]
+        return Apply(self, inputs, outputs)
+
+    def perform(self, node, inputs, output_storage):
+        (v, a, ter, mu_ssrt, sigma_ssrt, tau_ssrt) = [
+            float(np.asarray(x).ravel()[0]) for x in inputs
+        ]
+        logp = _loglik_ddm_single_subject(
+            self.go_df,
+            self.stop_df,
+            v,
+            a,
+            ter,
+            mu_ssrt,
+            sigma_ssrt + self.eps,
+            tau_ssrt + self.eps,
+            n_mc=self.n_mc,
+        )
+        output_storage[0][0] = np.array(logp, dtype=np.float64)
 
 
 def _loglik_ddm_single_subject(
@@ -88,30 +128,9 @@ def build_single_subject_ddm_model(go_df, stop_df, n_mc=500):
         sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.1)
         tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.1)
 
-        dummy_obs = np.array([0.0])
-
-        def logp_fn(value, v_, a_, ter_, mu_ssrt_, sigma_ssrt_, tau_ssrt_):
-            return _loglik_ddm_single_subject(
-                go_df,
-                stop_df,
-                float(v_),
-                float(a_),
-                float(ter_),
-                float(mu_ssrt_),
-                float(sigma_ssrt_ + 1e-6),
-                float(tau_ssrt_ + 1e-6),
-                n_mc=n_mc,
-            )
-
-        pm.DensityDist(
+        loglike_op = DDMLogLikeOp(go_df, stop_df, n_mc=n_mc, eps=1e-6)
+        pm.Potential(
             "likelihood",
-            v,
-            a,
-            ter,
-            mu_ssrt,
-            sigma_ssrt,
-            tau_ssrt,
-            logp=logp_fn,
-            observed=dummy_obs,
+            loglike_op(v, a, ter, mu_ssrt, sigma_ssrt, tau_ssrt),
         )
     return model

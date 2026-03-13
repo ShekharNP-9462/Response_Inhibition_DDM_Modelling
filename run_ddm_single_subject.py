@@ -6,6 +6,9 @@ Stop: ex-Gaussian SSRT in race with go DDM.
 Outputs: v (drift rate), a (boundary), ter (non-decision time), plus SSRT ex-Gaussian params.
 Includes elapsed-time and ETA logging.
 """
+import os as _os
+if "PYTENSOR_FLAGS" not in _os.environ:
+    _os.environ["PYTENSOR_FLAGS"] = "cxx="
 
 import argparse
 import os

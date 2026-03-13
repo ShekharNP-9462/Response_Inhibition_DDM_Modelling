@@ -1,7 +1,47 @@
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
+from pytensor.graph import Apply, Op
 
 from .distributions import exgauss_logpdf, safe_logsumexp
+
+
+class BEESTSLogLikeOp(Op):
+    """PyTensor Op that wraps the black-box BEESTS log-likelihood (returns scalar)."""
+
+    def __init__(self, go_df, stop_df, n_mc=500, eps=1e-3):
+        self.go_df = go_df
+        self.stop_df = stop_df
+        self.n_mc = n_mc
+        self.eps = eps
+
+    def make_node(self, mu_go, sigma_go, tau_go, mu_ssrt, sigma_ssrt, tau_ssrt):
+        mu_go = pt.as_tensor_variable(mu_go)
+        sigma_go = pt.as_tensor_variable(sigma_go)
+        tau_go = pt.as_tensor_variable(tau_go)
+        mu_ssrt = pt.as_tensor_variable(mu_ssrt)
+        sigma_ssrt = pt.as_tensor_variable(sigma_ssrt)
+        tau_ssrt = pt.as_tensor_variable(tau_ssrt)
+        inputs = [mu_go, sigma_go, tau_go, mu_ssrt, sigma_ssrt, tau_ssrt]
+        outputs = [pt.dscalar()]
+        return Apply(self, inputs, outputs)
+
+    def perform(self, node, inputs, output_storage):
+        (mu_go, sigma_go, tau_go, mu_ssrt, sigma_ssrt, tau_ssrt) = [
+            float(np.asarray(x).ravel()[0]) for x in inputs
+        ]
+        logp = _loglik_single_subject(
+            self.go_df,
+            self.stop_df,
+            mu_go,
+            sigma_go + self.eps,
+            tau_go + self.eps,
+            mu_ssrt,
+            sigma_ssrt + self.eps,
+            tau_ssrt + self.eps,
+            n_mc=self.n_mc,
+        )
+        output_storage[0][0] = np.array(logp, dtype=np.float64)
 
 
 def _loglik_single_subject(go_df, stop_df, mu_go, sigma_go, tau_go, mu_ssrt, sigma_ssrt, tau_ssrt, n_mc=500):
@@ -103,33 +143,11 @@ def build_single_subject_model(go_df, stop_df, n_mc=500):
         sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.1)
         tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.1)
 
-        # Custom likelihood: PyMC 4+ requires observed=data and params as positional args.
-        # logp(value, *params); we use a dummy observed value and ignore it (data in closure).
-        dummy_obs = np.array([0.0])
-
-        def logp_fn(value, mu_go_, sigma_go_, tau_go_, mu_ssrt_, sigma_ssrt_, tau_ssrt_):
-            return _loglik_single_subject(
-                go_df,
-                stop_df,
-                float(mu_go_),
-                float(sigma_go_ + eps),
-                float(tau_go_ + eps),
-                float(mu_ssrt_),
-                float(sigma_ssrt_ + eps),
-                float(tau_ssrt_ + eps),
-                n_mc=n_mc,
-            )
-
-        pm.DensityDist(
+        # Black-box likelihood via PyTensor Op (no gradients → Slice sampler).
+        loglike_op = BEESTSLogLikeOp(go_df, stop_df, n_mc=n_mc, eps=eps)
+        pm.Potential(
             "likelihood",
-            mu_go,
-            sigma_go,
-            tau_go,
-            mu_ssrt,
-            sigma_ssrt,
-            tau_ssrt,
-            logp=logp_fn,
-            observed=dummy_obs,
+            loglike_op(mu_go, sigma_go, tau_go, mu_ssrt, sigma_ssrt, tau_ssrt),
         )
 
     return model

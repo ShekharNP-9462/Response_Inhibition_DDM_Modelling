@@ -2,6 +2,10 @@
 Single-subject BEESTS (ex-Gaussian go + ex-Gaussian SSRT race) for Rashi pre-cued data.
 Includes elapsed-time and ETA logging.
 """
+# Silence PyTensor g++ warning when C compiler not available (optional)
+import os as _os
+if "PYTENSOR_FLAGS" not in _os.environ:
+    _os.environ["PYTENSOR_FLAGS"] = "cxx="
 
 import argparse
 import os
