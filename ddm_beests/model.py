@@ -128,20 +128,19 @@ def build_single_subject_model(go_df, stop_df, n_mc=500):
     The model uses ex-Gaussian go RTs and ex-Gaussian SSRTs, combined via
     a race model with Monte Carlo-approximated likelihood for stop trials.
     """
-
-    # Fix small jitter to avoid zero/negative sigma/tau
+    # Reasonable ranges: RTs in seconds (0.15–1.0), SSRT (0.1–0.4), sigma/tau (0.02–0.25)
     eps = 1e-3
 
     with pm.Model() as model:
-        # Priors for go RT distribution (ex-Gaussian)
-        mu_go = pm.Normal("mu_go", mu=0.4, sigma=0.2)  # seconds
-        sigma_go = pm.HalfNormal("sigma_go", sigma=0.2)
-        tau_go = pm.HalfNormal("tau_go", sigma=0.2)
+        # Priors for go RT (ex-Gaussian): kept in plausible range for seconds
+        mu_go = pm.Normal("mu_go", mu=0.4, sigma=0.15)  # ~250–550 ms
+        sigma_go = pm.HalfNormal("sigma_go", sigma=0.12)  # avoid huge scale
+        tau_go = pm.HalfNormal("tau_go", sigma=0.12)
 
-        # Priors for SSRT distribution (ex-Gaussian)
-        mu_ssrt = pm.Normal("mu_ssrt", mu=0.2, sigma=0.1)
-        sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.1)
-        tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.1)
+        # Priors for SSRT (ex-Gaussian): typical 150–350 ms
+        mu_ssrt = pm.Normal("mu_ssrt", mu=0.22, sigma=0.08)
+        sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.08)
+        tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.08)
 
         # Black-box likelihood via PyTensor Op (no gradients → Slice sampler).
         loglike_op = BEESTSLogLikeOp(go_df, stop_df, n_mc=n_mc, eps=eps)
@@ -151,4 +150,31 @@ def build_single_subject_model(go_df, stop_df, n_mc=500):
         )
 
     return model
+
+
+def get_beests_initvals(go_df, stop_df):
+    """
+    Data-based initial values for BEESTS parameters to improve convergence.
+    All in seconds.
+    """
+    rts = go_df["rt"].dropna().to_numpy()
+    if len(rts) < 2:
+        return None
+    mu_go_init = float(np.mean(rts))
+    sd_go = float(np.std(rts))
+    # Ex-Gaussian: rough sigma < sd, tau captures positive skew
+    sigma_go_init = float(np.clip(sd_go * 0.6, 0.02, 0.2))
+    tau_go_init = float(np.clip(sd_go * 0.5, 0.02, 0.2))
+    # SSRT: no direct observation; use typical values
+    mu_ssrt_init = 0.22
+    sigma_ssrt_init = 0.06
+    tau_ssrt_init = 0.06
+    return {
+        "mu_go": mu_go_init,
+        "sigma_go": sigma_go_init,
+        "tau_go": tau_go_init,
+        "mu_ssrt": mu_ssrt_init,
+        "sigma_ssrt": sigma_ssrt_init,
+        "tau_ssrt": tau_ssrt_init,
+    }
 

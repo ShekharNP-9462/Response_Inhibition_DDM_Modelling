@@ -15,7 +15,7 @@ import arviz as az
 import pymc as pm
 
 from ddm_beests.io import prepare_rashi_single_subject_for_model
-from ddm_beests.model import build_single_subject_model
+from ddm_beests.model import build_single_subject_model, get_beests_initvals
 
 
 def _make_progress_callback(total_steps, start_time, log_interval=100):
@@ -46,9 +46,9 @@ def main():
         type=str,
         help="Path to subject directory (e.g. .../Rashi_Dataset/EF_Y_01).",
     )
-    parser.add_argument("--draws", type=int, default=1000)
-    parser.add_argument("--tune", type=int, default=1000)
-    parser.add_argument("--chains", type=int, default=2)
+    parser.add_argument("--draws", type=int, default=1500, help="Draws per chain (more for better ESS).")
+    parser.add_argument("--tune", type=int, default=1500, help="Tune steps per chain.")
+    parser.add_argument("--chains", type=int, default=4, help="Chains (4 recommended for R̂/ESS).")
     parser.add_argument("--n-mc", type=int, default=500)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--log-interval", type=int, default=100, help="Steps between ETA logs.")
@@ -65,6 +65,7 @@ def main():
         raise ValueError("Go or stop data is empty for this subject.")
 
     model = build_single_subject_model(go_df, stop_df, n_mc=args.n_mc)
+    initvals = get_beests_initvals(go_df, stop_df)
     callback = _make_progress_callback(total_steps, t_start, args.log_interval)
 
     with model:
@@ -74,6 +75,7 @@ def main():
             tune=args.tune,
             chains=args.chains,
             step=step,
+            initvals=initvals,
             callback=callback,
             progressbar=True,
         )

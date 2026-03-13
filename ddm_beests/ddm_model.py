@@ -120,13 +120,13 @@ def build_single_subject_ddm_model(go_df, stop_df, n_mc=500):
     """
     with pm.Model() as model:
         # DDM parameters (all in seconds; v and a positive)
-        v = pm.HalfNormal("v", sigma=2.0)   # drift rate
-        a = pm.HalfNormal("a", sigma=1.0)   # boundary separation
-        ter = pm.Uniform("ter", lower=0.05, upper=0.6)  # non-decision time (seconds)
+        v = pm.HalfNormal("v", sigma=1.5)   # drift rate (tighter)
+        a = pm.HalfNormal("a", sigma=0.8)   # boundary separation
+        ter = pm.Uniform("ter", lower=0.05, upper=0.5)  # non-decision time (seconds)
 
-        mu_ssrt = pm.Normal("mu_ssrt", mu=0.2, sigma=0.1)
-        sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.1)
-        tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.1)
+        mu_ssrt = pm.Normal("mu_ssrt", mu=0.22, sigma=0.08)
+        sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.08)
+        tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.08)
 
         loglike_op = DDMLogLikeOp(go_df, stop_df, n_mc=n_mc, eps=1e-6)
         pm.Potential(
@@ -134,3 +134,20 @@ def build_single_subject_ddm_model(go_df, stop_df, n_mc=500):
             loglike_op(v, a, ter, mu_ssrt, sigma_ssrt, tau_ssrt),
         )
     return model
+
+
+def get_ddm_initvals(go_df, stop_df):
+    """Data-based initial values for DDM parameters (seconds)."""
+    rts = go_df["rt"].dropna().to_numpy()
+    if len(rts) < 2:
+        return None
+    mean_rt = float(np.mean(rts))
+    # Rough DDM inits: ter + a/v ≈ mean_rt; set ter~0.15, a/v~0.35
+    return {
+        "v": 1.2,
+        "a": 0.5,
+        "ter": 0.18,
+        "mu_ssrt": 0.22,
+        "sigma_ssrt": 0.06,
+        "tau_ssrt": 0.06,
+    }
