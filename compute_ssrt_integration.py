@@ -201,12 +201,18 @@ def main():
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
 
-    # Left: SSRT distributions by group
-    data = [young_ssrt, old_ssrt]
-    labels = ["Young", "Old"]
-    axes[0].boxplot(data, labels=labels)
+    # Left: SSRT as dots per subject by condition
+    rng = np.random.default_rng(42)
+    jitter = 0.08
+    x_young = np.zeros_like(young_ssrt) + rng.uniform(-jitter, jitter, size=young_ssrt.shape)
+    x_old = np.ones_like(old_ssrt) + rng.uniform(-jitter, jitter, size=old_ssrt.shape)
+    axes[0].scatter(x_young, young_ssrt, alpha=0.7, label="Young", s=50)
+    axes[0].scatter(x_old, old_ssrt, alpha=0.7, label="Old", s=50)
+    axes[0].set_xticks([0, 1])
+    axes[0].set_xticklabels(["Young", "Old"])
     axes[0].set_ylabel("SSRT (ms)")
     axes[0].set_title("SSRT (integration method)")
+    axes[0].legend(loc="upper right")
 
     # Right: Go RT distributions (MS_GO) by group
     bins = 20
