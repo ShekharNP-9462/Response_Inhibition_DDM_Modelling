@@ -122,13 +122,13 @@ def build_single_subject_model(go_df, stop_df, n_mc=500):
 
         pm.DensityDist(
             "likelihood",
-            logp_fn,
             mu_go,
             sigma_go,
             tau_go,
             mu_ssrt,
             sigma_ssrt,
             tau_ssrt,
+            logp=logp_fn,
             observed=dummy_obs,
         )
 
