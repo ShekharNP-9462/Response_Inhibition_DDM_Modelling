@@ -88,7 +88,9 @@ def build_single_subject_ddm_model(go_df, stop_df, n_mc=500):
         sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.1)
         tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.1)
 
-        def logp_fn(v_, a_, ter_, mu_ssrt_, sigma_ssrt_, tau_ssrt_):
+        dummy_obs = np.array([0.0])
+
+        def logp_fn(value, v_, a_, ter_, mu_ssrt_, sigma_ssrt_, tau_ssrt_):
             return _loglik_ddm_single_subject(
                 go_df,
                 stop_df,
@@ -104,13 +106,12 @@ def build_single_subject_ddm_model(go_df, stop_df, n_mc=500):
         pm.DensityDist(
             "likelihood",
             logp_fn,
-            observed={
-                "v_": v,
-                "a_": a,
-                "ter_": ter,
-                "mu_ssrt_": mu_ssrt,
-                "sigma_ssrt_": sigma_ssrt,
-                "tau_ssrt_": tau_ssrt,
-            },
+            v,
+            a,
+            ter,
+            mu_ssrt,
+            sigma_ssrt,
+            tau_ssrt,
+            observed=dummy_obs,
         )
     return model

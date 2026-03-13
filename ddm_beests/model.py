@@ -103,12 +103,11 @@ def build_single_subject_model(go_df, stop_df, n_mc=500):
         sigma_ssrt = pm.HalfNormal("sigma_ssrt", sigma=0.1)
         tau_ssrt = pm.HalfNormal("tau_ssrt", sigma=0.1)
 
-        # Custom likelihood using a PyTensor-op like function
-        # For simplicity and flexibility, we use a DensityDist with a Python logp.
-        # This implies sampling with step methods that can handle black-box likelihoods
-        # (e.g., slice or Metropolis), not NUTS.
+        # Custom likelihood: PyMC 4+ requires observed=data and params as positional args.
+        # logp(value, *params); we use a dummy observed value and ignore it (data in closure).
+        dummy_obs = np.array([0.0])
 
-        def logp_fn(mu_go_, sigma_go_, tau_go_, mu_ssrt_, sigma_ssrt_, tau_ssrt_):
+        def logp_fn(value, mu_go_, sigma_go_, tau_go_, mu_ssrt_, sigma_ssrt_, tau_ssrt_):
             return _loglik_single_subject(
                 go_df,
                 stop_df,
@@ -124,14 +123,13 @@ def build_single_subject_model(go_df, stop_df, n_mc=500):
         pm.DensityDist(
             "likelihood",
             logp_fn,
-            observed={
-                "mu_go_": mu_go,
-                "sigma_go_": sigma_go,
-                "tau_go_": tau_go,
-                "mu_ssrt_": mu_ssrt,
-                "sigma_ssrt_": sigma_ssrt,
-                "tau_ssrt_": tau_ssrt,
-            },
+            mu_go,
+            sigma_go,
+            tau_go,
+            mu_ssrt,
+            sigma_ssrt,
+            tau_ssrt,
+            observed=dummy_obs,
         )
 
     return model
